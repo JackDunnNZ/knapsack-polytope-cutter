@@ -36,8 +36,14 @@ def ReadInputFile(filename):
     return A, b
 
 # Order set of coefficients
+def ConstructOrderedSet(A, b):
+    # Placeholder
+    N = set(range(1, len(A) + 1))
+    return N
 
 # Find min covers of constraint
+def GenerateMinimalCovers(A, b):
+    pass
 
 # Filter out all non strong covers
 
@@ -49,3 +55,4 @@ def ReadInputFile(filename):
 
 # Main routine (to be moved)
 A, b = ReadInputFile('example_problem.dat')
+N = ConstructOrderedSet(A, b)
