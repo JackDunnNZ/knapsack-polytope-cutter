@@ -71,7 +71,6 @@ def GenerateMinimalCovers(N, A, b):
 
     k = 0
     while k < n:
-        print s, k
         v = SumCoeffsOverIndexList(s, A)
         s[k] += 1
         if v + A[k] > b:
@@ -104,10 +103,54 @@ def GenerateMinimalCovers(N, A, b):
 
     return sets
 
+def SetCoefficientsForIndexSet(index_set, pi, value):
+    for i in index_set:
+        pi[i - 1] = value
+    return pi
+
+def FirstNElemsOfSet(index_set, n):
+    return set(sorted(list(index_set))[:n])
+
+def SumFirstNCoeffsOfSet(index_set, A, n):
+    reduced_set = FirstNElemsOfSet(index_set, n)
+    return SumCoeffsOverSet(reduced_set, A)
+
+def CheckValidityOfCut(S, A, h, Nh, b):
+    reduced_S = S - FirstNElemsOfSet(S, h + 1)
+    reduced_sum = SumCoeffsOverSet(reduced_S, A)
+    for i in Nh:
+        if reduced_sum + A[i - 1] > b:
+            return False
+    return True
 
 # Generate constraint from each strong cover
+def GenerateConstraintFromStrongCover(S, N, A, b):
+    pi_0 = len(S) - 1
+    pi = [0 for _ in range(len(N))]
 
-# Check constraints for facet defining condition
+    extended_S = ExtendSet(S)
+    if pi_0 > 1:
+        Sh_sum_old = SumFirstNCoeffsOfSet(S, A, 2)
+        # TODO(jwd): Add in changing q
+        for h in range(2, pi_0 + 1):
+            Sh_sum_new = SumFirstNCoeffsOfSet(S, A, h + 1)
+            Nh = set(i for i in N if A[i - 1] >= Sh_sum_old and
+                     A[i -1] < Sh_sum_new)
+
+            # Check validity
+            if not CheckValidityOfCut(S, A, h, Nh, b):
+                return None
+
+            pi = SetCoefficientsForIndexSet(Nh, pi, h)
+            extended_S -= Nh
+            Sh_sum_old = Sh_sum_new
+
+    # Check validity
+    if not CheckValidityOfCut(S, A, 1, extended_S, b):
+        return None
+    pi = SetCoefficientsForIndexSet(extended_S, pi, 1)
+    return pi, pi_0
+
 
 # Generate output file
 
@@ -115,3 +158,7 @@ def GenerateMinimalCovers(N, A, b):
 A, b = ReadInputFile('example_problem.dat')
 N = ConstructOrderedSet(A, b)
 sets = GenerateMinimalCovers(N, A, b)
+for S in sets:
+    result = GenerateConstraintFromStrongCover(S, N, A, b)
+    if result:
+        print result[0], result[1], S
