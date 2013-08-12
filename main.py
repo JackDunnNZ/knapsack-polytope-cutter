@@ -153,12 +153,35 @@ def GenerateConstraintFromStrongCover(S, N, A, b):
 
 
 # Generate output file
+def WriteOutputFile(A, b, constraints):
+    f = open('results.dat', 'w')
+    f.write('ORIGINAL CONSTRAINT\n')
+    f.write('\n')
+    f.write('%d\n' % len(A))
+    f.write('%s\n' % ','.join(str(a) for a in A))
+    f.write('%d\n' % b)
+    f.write('\n')
+    f.write('--------------------\n')
+    f.write('\n')
+    f.write('NEW CONSTRAINTS\n')
+    f.write('\n')
+    f.write('--------------------\n')
+    f.write('\n')
+
+    for coefficients, rhs in constraints:
+        f.write('%s\n' % ','.join(str(a) for a in coefficients))
+        f.write('%d\n' % rhs)
+        f.write('\n')
+
+    f.close()
 
 # Main routine (to be moved)
 A, b = ReadInputFile('example_problem.dat')
 N = ConstructOrderedSet(A, b)
 sets = GenerateMinimalCovers(N, A, b)
+constraints = []
 for S in sets:
     result = GenerateConstraintFromStrongCover(S, N, A, b)
     if result:
-        print result[0], result[1], S
+        constraints.append((result[0], result[1]))
+WriteOutputFile(A, b, constraints)
