@@ -1,3 +1,10 @@
+from itertools import chain, combinations
+from collections import defaultdict
+
+def powerset(iterable):
+    "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
+    s = list(iterable)
+    return chain.from_iterable(combinations(s, r) for r in range(len(s)+1))
 
 # Read in input file
 def ReadInputFile(filename):
@@ -41,11 +48,28 @@ def ConstructOrderedSet(A, b):
     N = set(range(1, len(A) + 1))
     return N
 
-# Find min covers of constraint
-def GenerateMinimalCovers(A, b):
-    pass
+def SumCoeffsOverSet(summing_set, A):
+    return sum(A[i - 1] for i in summing_set)
 
-# Filter out all non strong covers
+# Find min covers of constraint
+def GenerateMinimalCovers(N, A, b):
+    sets = []
+    set_map = defaultdict(list)
+    for subset in powerset(N):
+        if SumCoeffsOverSet(subset, A) > b:
+            print subset, SumCoeffsOverSet(subset, A)
+            sets.append(subset)
+            set_map[len(subset)].append(subset)
+
+    # Filter out all non strong covers
+    for set_length, subsets in set_map.iteritems():
+        l = len(subsets)
+        for i, subset in enumerate(reversed(subsets)):
+            for j in range(i, l):
+                print l, i, j
+                if subset < subsets[l - 1 - j]:
+                    subsets.remove(subset)
+        print subsets
 
 # Generate constraint from each strong cover
 
@@ -56,3 +80,4 @@ def GenerateMinimalCovers(A, b):
 # Main routine (to be moved)
 A, b = ReadInputFile('example_problem.dat')
 N = ConstructOrderedSet(A, b)
+GenerateMinimalCovers(N, A, b)
