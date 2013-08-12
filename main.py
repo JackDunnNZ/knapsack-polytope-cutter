@@ -1,3 +1,6 @@
+import time
+t_ = time.clock()
+
 from itertools import chain, combinations
 from collections import defaultdict
 
@@ -185,3 +188,4 @@ for S in sets:
     if result:
         constraints.append((result[0], result[1]))
 WriteOutputFile(A, b, constraints)
+print 'Total time taken', time.clock() - t_
