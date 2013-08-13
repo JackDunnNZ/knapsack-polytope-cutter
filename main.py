@@ -1,6 +1,7 @@
 import time
 t_ = time.clock()
 
+import argparse
 from itertools import chain, combinations
 from collections import defaultdict
 
@@ -164,8 +165,8 @@ def GenerateConstraintFromStrongCover(S, N, A, b):
 
 
 # Generate output file
-def WriteOutputFile(A, b, constraints, sort_map):
-    f = open('results1.dat', 'w')
+def WriteOutputFile(results_file, A, b, constraints, sort_map):
+    f = open(results_file, 'w')
     f.write('ORIGINAL CONSTRAINT\n')
     f.write('\n')
     f.write('%d\n' % len(A))
@@ -188,8 +189,17 @@ def WriteOutputFile(A, b, constraints, sort_map):
 
     f.close()
 
+parser = argparse.ArgumentParser(description=('Reduce knapsack constraint to'
+                                              'convex hull of integer points'))
+parser.add_argument('input_file', help='the problem data file to process')
+parser.add_argument('-r', '--results_file', default='results.dat',
+                    help='name of results file (default: results.dat)')
+args = parser.parse_args()
+input_file = args.input_file
+results_file = args.results_file
+
 # Main routine (to be moved)
-A, b = ReadInputFile('big_problem.dat')
+A, b = ReadInputFile(input_file)
 N, A, sort_map = ConstructOrderedSet(A, b)
 sets = GenerateMinimalCovers(N, A, b)
 constraints = []
@@ -197,5 +207,5 @@ for S in sets:
     result = GenerateConstraintFromStrongCover(S, N, A, b)
     if result:
         constraints.append((result[0], result[1]))
-WriteOutputFile(A, b, constraints, sort_map)
+WriteOutputFile(results_file, A, b, constraints, sort_map)
 print 'Total time taken', time.clock() - t_
