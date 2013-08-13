@@ -1,0 +1,6 @@
+*.pyc
+big_problem_sorted.dat
+results2.dat
+results1.dat
+dist/*
+build/*
