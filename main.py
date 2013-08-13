@@ -47,9 +47,11 @@ def ReadInputFile(filename):
 
 # Order set of coefficients
 def ConstructOrderedSet(A, b):
+    sort_map = sorted(range(len(A)), key=A.__getitem__, reverse=True)
+    A.sort(reverse=True)
     # Placeholder
     N = set(range(1, len(A) + 1))
-    return N
+    return N, A, sort_map
 
 def SumCoeffsOverSet(summing_set, A):
     return sum(A[i - 1] for i in summing_set)
@@ -126,6 +128,12 @@ def CheckValidityOfCut(S, A, h, Nh, b):
             return False
     return True
 
+def ReverseSortMap(A, sort_map):
+    reversed_A = [0 for _ in range(len(A))]
+    for i, j in enumerate(sort_map):
+        reversed_A[j] = A[i]
+    return reversed_A
+
 # Generate constraint from each strong cover
 def GenerateConstraintFromStrongCover(S, N, A, b):
     pi_0 = len(S) - 1
@@ -156,11 +164,12 @@ def GenerateConstraintFromStrongCover(S, N, A, b):
 
 
 # Generate output file
-def WriteOutputFile(A, b, constraints):
-    f = open('results.dat', 'w')
+def WriteOutputFile(A, b, constraints, sort_map):
+    f = open('results1.dat', 'w')
     f.write('ORIGINAL CONSTRAINT\n')
     f.write('\n')
     f.write('%d\n' % len(A))
+    A = ReverseSortMap(A, sort_map)
     f.write('%s\n' % ','.join(str(a) for a in A))
     f.write('%d\n' % b)
     f.write('\n')
@@ -172,6 +181,7 @@ def WriteOutputFile(A, b, constraints):
     f.write('\n')
 
     for coefficients, rhs in constraints:
+        coefficients = ReverseSortMap(coefficients, sort_map)
         f.write('%s\n' % ','.join(str(a) for a in coefficients))
         f.write('%d\n' % rhs)
         f.write('\n')
@@ -179,13 +189,13 @@ def WriteOutputFile(A, b, constraints):
     f.close()
 
 # Main routine (to be moved)
-A, b = ReadInputFile('example_problem.dat')
-N = ConstructOrderedSet(A, b)
+A, b = ReadInputFile('big_problem.dat')
+N, A, sort_map = ConstructOrderedSet(A, b)
 sets = GenerateMinimalCovers(N, A, b)
 constraints = []
 for S in sets:
     result = GenerateConstraintFromStrongCover(S, N, A, b)
     if result:
         constraints.append((result[0], result[1]))
-WriteOutputFile(A, b, constraints)
+WriteOutputFile(A, b, constraints, sort_map)
 print 'Total time taken', time.clock() - t_
