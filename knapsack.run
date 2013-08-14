@@ -1,0 +1,9 @@
+reset;
+
+model knapsack.mod;
+data knapsack.dat;
+
+option solver cplex;
+solve;
+
+display x;
