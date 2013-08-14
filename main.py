@@ -1,6 +1,4 @@
 import time
-t_ = time.clock()
-
 import argparse
 from collections import defaultdict
 
@@ -218,7 +216,7 @@ def ReverseSortMap(A, sort_map):
 
 
 def GenerateConstraintFromStrongCover(S, N, A, b):
-    """Generates a cutting constraint from a strong cover, S."""
+    """Generates a cutting constraint from a strong cover S."""
 
     pi_0 = len(S) - 1
     pi = [0 for _ in range(len(N))]
@@ -247,8 +245,11 @@ def GenerateConstraintFromStrongCover(S, N, A, b):
     return pi, pi_0
 
 
-# Generate output file
 def WriteOutputFile(results_file, A, b, constraints, sort_map):
+    """Write results file, containing all new cuts, ordered as in the input
+    file.
+    """
+
     f = open(results_file, 'w')
     f.write('ORIGINAL CONSTRAINT\n')
     f.write('\n')
@@ -263,7 +264,6 @@ def WriteOutputFile(results_file, A, b, constraints, sort_map):
     f.write('\n')
     f.write('--------------------\n')
     f.write('\n')
-
     for coefficients, rhs in constraints:
         coefficients = ReverseSortMap(coefficients, sort_map)
         f.write('%s\n' % ','.join(str(a) for a in coefficients))
@@ -272,23 +272,29 @@ def WriteOutputFile(results_file, A, b, constraints, sort_map):
 
     f.close()
 
-parser = argparse.ArgumentParser(description=('Reduce knapsack constraint to'
-                                              'convex hull of integer points'))
-parser.add_argument('input_file', help='the problem data file to process')
-parser.add_argument('-r', '--results_file', default='results.dat',
-                    help='name of results file (default: results.dat)')
-args = parser.parse_args()
-input_file = args.input_file
-results_file = args.results_file
+"""Main routine."""
+if __name__ == '__main__':
+    # Include and parse command line arguments
+    parser = argparse.ArgumentParser(
+        description=('Reduce knapsack constraint to convex hull of integer '
+                     'points'))
+    parser.add_argument('input_file', help='the problem data file to process')
+    parser.add_argument('-r', '--results_file', default='results.dat',
+                        help='name of results file (default: results.dat)')
+    args = parser.parse_args()
+    input_file = args.input_file
+    results_file = args.results_file
 
-# Main routine (to be moved)
-A, b = ReadInputFile(input_file)
-N, A, sort_map = ConstructOrderedSet(A, b)
-sets = GenerateMinimalCovers(N, A, b)
-constraints = []
-for S in sets:
-    result = GenerateConstraintFromStrongCover(S, N, A, b)
-    if result:
-        constraints.append((result[0], result[1]))
-WriteOutputFile(results_file, A, b, constraints, sort_map)
-print 'Total time taken', time.clock() - t_
+    # Main solution routine
+    t_ = time.clock()
+
+    A, b = ReadInputFile(input_file)
+    N, A, sort_map = ConstructOrderedSet(A)
+    sets = GenerateMinimalCovers(N, A, b)
+    constraints = []
+    for S in sets:
+        result = GenerateConstraintFromStrongCover(S, N, A, b)
+        if result:
+            constraints.append((result[0], result[1]))
+    WriteOutputFile(results_file, A, b, constraints, sort_map)
+    print 'Total time taken', time.clock() - t_
