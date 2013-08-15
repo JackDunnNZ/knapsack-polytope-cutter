@@ -254,8 +254,8 @@ def WriteOutputFile(results_file, A, b, constraints, sort_map):
     f.write('ORIGINAL CONSTRAINT\n')
     f.write('\n')
     f.write('%d\n' % len(A))
-    A = ReverseSortMap(A, sort_map)
-    f.write('%s\n' % ','.join(str(a) for a in A))
+    A_ordered = ReverseSortMap(A, sort_map)
+    f.write('%s\n' % ','.join(str(a) for a in A_ordered))
     f.write('%d\n' % b)
     f.write('\n')
     f.write('--------------------\n')
@@ -272,6 +272,38 @@ def WriteOutputFile(results_file, A, b, constraints, sort_map):
 
     f.close()
 
+
+def WriteAmplDataFile(ampl_file, A, b, constraints, sort_map):
+    """Write data file for use in AMPL model with new constraints."""
+
+    f = open(ampl_file, 'w')
+    f.write('set VARIABLES := %s;\n' % ' '.join(str(i + 1) for i in
+            range(len(A))))
+    f.write('set CONSTRAINTS := %s;\n' % ' '.join(str(i + 1) for i in
+            range(len(constraints) + 1)))
+    f.write('\n')
+    f.write('param c :=\n')
+    # TODO(jwd): Insert c here
+    f.write(' ;\n')
+    f.write('\n')
+    f.write('param b :=\n')
+    f.write('%2d  %2d\n' % (1, b))
+    for i, j in enumerate(constraints):
+        f.write('%2d  %2d\n' % (i + 2, j[1]))
+    f.write(' ;\n')
+    f.write('\n')
+    f.write('param a (tr) :\n')
+    f.write('     %s :=\n' % '   '.join(str(i + 1) for i in
+            range(len(A))))
+    A_ordered = ReverseSortMap(A, sort_map)
+    f.write('%2d   %s\n' % (1, '   '.join(str(a) for a in A_ordered)))
+    for i, constraint in enumerate(constraints):
+        coefficients = ReverseSortMap(constraint[0], sort_map)
+        f.write('%2d   %s\n' % (i + 2, '   '.join(str(a) for a in
+                coefficients)))
+    f.write(' ;\n')
+
+
 """Main routine."""
 if __name__ == '__main__':
     # Include and parse command line arguments
@@ -279,11 +311,14 @@ if __name__ == '__main__':
         description=('Reduce knapsack constraint to convex hull of integer '
                      'points'))
     parser.add_argument('input_file', help='the problem data file to process')
-    parser.add_argument('-r', '--results_file', default='results.dat',
-                        help='name of results file (default: results.dat)')
+    parser.add_argument('-r', '--results_file', default='results.txt',
+                        help='name of results file (default: results.txt)')
+    parser.add_argument('-a', '--ampl_file', default='knapsack.dat', help=
+                        'name of AMPL file to write (default: knapsack.dat)')
     args = parser.parse_args()
     input_file = args.input_file
     results_file = args.results_file
+    ampl_file = args.ampl_file
 
     # Main solution routine
     t_ = time.clock()
@@ -297,4 +332,5 @@ if __name__ == '__main__':
         if result:
             constraints.append((result[0], result[1]))
     WriteOutputFile(results_file, A, b, constraints, sort_map)
+    WriteAmplDataFile(ampl_file, A, b, constraints, sort_map)
     print 'Total time taken', time.clock() - t_
