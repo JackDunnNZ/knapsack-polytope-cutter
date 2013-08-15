@@ -16,12 +16,16 @@ def ReadInputFile(filename):
     This value is assumed to be integer.
     TODO(jwd): check if this requirement is necessary.
 
+    The fourth line contains the value of each variable, where the total value
+    is to be maximised.
+
     Inputs:
         filename: A string, the filename of the input file to read.
 
     Returns:
         A list, the coefficients for the knapsack constraint.
         A number, the value for the right hand side in the knapsack constraint.
+        A list, the value of each variable.
     """
 
     f = open(filename, 'r')
@@ -35,8 +39,11 @@ def ReadInputFile(filename):
     # Read RHS
     b = int(f.readline().rstrip('\n'))
 
+    # Read in n entries for the value list
+    c = [int(a) for a in f.readline().rstrip('\n').split(',')[0:n]]
+
     f.close()
-    return A, b
+    return A, b, c
 
 
 def ConstructOrderedSet(A):
@@ -273,7 +280,7 @@ def WriteOutputFile(results_file, A, b, constraints, sort_map):
     f.close()
 
 
-def WriteAmplDataFile(ampl_file, A, b, constraints, sort_map):
+def WriteAmplDataFile(ampl_file, A, b, c, constraints, sort_map):
     """Write data file for use in AMPL model with new constraints."""
 
     f = open(ampl_file, 'w')
@@ -283,7 +290,8 @@ def WriteAmplDataFile(ampl_file, A, b, constraints, sort_map):
             range(len(constraints) + 1)))
     f.write('\n')
     f.write('param c :=\n')
-    # TODO(jwd): Insert c here
+    for i, j in enumerate(c):
+        f.write('%2d  %2d\n' % (i + 1, j))
     f.write(' ;\n')
     f.write('\n')
     f.write('param b :=\n')
@@ -323,7 +331,7 @@ if __name__ == '__main__':
     # Main solution routine
     t_ = time.clock()
 
-    A, b = ReadInputFile(input_file)
+    A, b, c = ReadInputFile(input_file)
     N, A, sort_map = ConstructOrderedSet(A)
     sets = GenerateMinimalCovers(N, A, b)
     constraints = []
@@ -332,5 +340,5 @@ if __name__ == '__main__':
         if result:
             constraints.append((result[0], result[1]))
     WriteOutputFile(results_file, A, b, constraints, sort_map)
-    WriteAmplDataFile(ampl_file, A, b, constraints, sort_map)
+    WriteAmplDataFile(ampl_file, A, b, c, constraints, sort_map)
     print 'Total time taken', time.clock() - t_
