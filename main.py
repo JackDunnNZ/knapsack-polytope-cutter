@@ -222,17 +222,16 @@ def ReverseSortMap(A, sort_map):
     return reversed_A
 
 
-def GenerateConstraintFromStrongCover(S, N, A, b):
-    """Generates a cutting constraint from a strong cover S."""
+def GenerateQthConstraintFromStrongCover(S, N, A, b, q):
+    """Generates a cutting constraint from a strong cover S, given q."""
 
     pi_0 = len(S) - 1
     pi = [0 for _ in range(len(N))]
 
     extended_S = ExtendSet(S)
-    if pi_0 > 1:
+    if q > 1:
         Sh_sum_old = SumFirstNCoeffsOfSet(S, A, 2)
-        # TODO(jwd): Add in changing q
-        for h in range(2, pi_0 + 1):
+        for h in range(2, q + 1):
             Sh_sum_new = SumFirstNCoeffsOfSet(S, A, h + 1)
             Nh = set(i for i in N if A[i - 1] >= Sh_sum_old and
                      A[i - 1] < Sh_sum_new)
@@ -250,6 +249,29 @@ def GenerateConstraintFromStrongCover(S, N, A, b):
         return None
     pi = SetCoefficientsForIndexSet(extended_S, pi, 1)
     return pi, pi_0
+
+
+def GenerateAllConstraintsFromStrongCover(S, N, A, b):
+    """Generates all constraints for a strong cover S."""
+
+    constraints = []
+    end = max(len(S) - 1, 1)
+    for q in range(1, end + 1):
+        result = GenerateQthConstraintFromStrongCover(S, N, A, b, q)
+        if result:
+            constraints.append((result[0], result[1]))
+    return constraints
+
+
+def GenerateOneConstraintFromStrongCover(S, N, A, b):
+    """Generates maximal constraint for a strong cover S."""
+
+    constraints = []
+    end = max(len(S) - 1, 1)
+    result = GenerateQthConstraintFromStrongCover(S, N, A, b, end)
+    if result:
+        constraints.append((result[0], result[1]))
+    return constraints
 
 
 def WriteOutputFile(results_file, A, b, constraints, sort_map):
@@ -336,9 +358,9 @@ if __name__ == '__main__':
     sets = GenerateMinimalCovers(N, A, b)
     constraints = []
     for S in sets:
-        result = GenerateConstraintFromStrongCover(S, N, A, b)
+        result = GenerateOneConstraintFromStrongCover(S, N, A, b)
         if result:
-            constraints.append((result[0], result[1]))
+            constraints += result
     WriteOutputFile(results_file, A, b, constraints, sort_map)
     WriteAmplDataFile(ampl_file, A, b, c, constraints, sort_map)
     print 'Total time taken', time.clock() - t_
