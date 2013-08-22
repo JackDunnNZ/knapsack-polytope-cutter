@@ -251,18 +251,6 @@ def GenerateQthConstraintFromStrongCover(S, N, A, b, q):
     return pi, pi_0
 
 
-def GenerateAllConstraintsFromStrongCover(S, N, A, b):
-    """Generates all constraints for a strong cover S."""
-
-    constraints = []
-    end = max(len(S) - 1, 1)
-    for q in range(1, end + 1):
-        result = GenerateQthConstraintFromStrongCover(S, N, A, b, q)
-        if result:
-            constraints.append((result[0], result[1]))
-    return constraints
-
-
 def GenerateOneConstraintFromStrongCover(S, N, A, b):
     """Generates maximal constraint for a strong cover S."""
 
