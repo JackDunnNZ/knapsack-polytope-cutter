@@ -1,4 +1,5 @@
 import time
+import itertools
 import argparse
 from collections import defaultdict
 
@@ -268,6 +269,163 @@ def GenerateOneConstraintFromStrongCover(S, N, A, b):
     return constraints
 
 
+def GenerateBetaDashFromMinCover(S, A, b):
+    """Generate all beta_dash coefficients for a minimal cover S."""
+
+    beta_dash = ['' for _ in range(len(A))]
+    h = 0
+    i = len(A) - 1
+    sortedS = sorted(S)
+
+    sumSh = SumCoeffsOverSet(S, A)
+    sumSh_1 = sumSh - A[sortedS[h] - 1]
+
+    while i >= 0:
+        if i + 1 in S:
+            beta_dash[i] = 1
+            i -= 1
+        else:
+            val = b - A[i]
+            if val >= sumSh_1 and val < sumSh:
+                beta_dash[i] = h
+                i -= 1
+            else:
+                h += 1
+                sumSh = sumSh_1
+                sumSh_1 = sumSh - A[sortedS[h] - 1]
+    return beta_dash
+
+
+def GeneratePiFromMinCover(S, A):
+    """Generate all pi coefficients for a minimal cover S."""
+
+    pi = ['' for _ in range(len(A))]
+    q = len(S) - 1
+    i = 0
+    extS = ExtendSet(S)
+    sortedS = sorted(S)
+    h = q
+
+    sumSh_1 = SumFirstNCoeffsOfSet(S, A, h + 1)
+    sumSh = sumSh_1 - A[sortedS[h] - 1]
+
+    while i < len(A):
+        if i + 1 not in extS:
+            pi[i] = 0
+            i += 1
+        else:
+            if i + 1 in S or h == 1:
+                pi[i] = 1
+                i += 1
+            else:
+                val = A[i]
+                if val < sumSh_1 and val >= sumSh:
+                    pi[i] = h
+                    i += 1
+                else:
+                    h -= 1
+                    if h >= 1:
+                        sumSh_1 = sumSh
+                        sumSh = sumSh_1 - A[sortedS[h] - 1]
+    return pi
+
+
+def PartitionMinCoverToIAndJ(S, beta_dash, pi):
+    """Determine I and J, where i is in I if beta_dash[i] == pi[i]."""
+    I = set()
+    J = set()
+    for i in range(len(beta_dash)):
+        if i + 1 not in S:
+            if beta_dash[i] == pi[i]:
+                I.add(i + 1)
+            else:
+                J.add(i + 1)
+    return I, J
+
+
+def FindFacetsFromJ(J, S, A, b, pi):
+    """Finds a sequentially lifted facet from J if it exists."""
+
+    if not J:
+        return pi
+
+    beta = [pi[i] if i + 1 not in J else '' for i in range(len(A))]
+    beta_j = [0 for _ in J]
+    q = 0
+    Q = set([J[q]])
+    i = J[q] - 1
+    beta[i] = pi[i] + 1
+    beta_j[q] = 1
+
+    while q < len(J) - 1:
+        q += 1
+        i = J[q] - 1
+
+        # Sort SuQ by B/A
+        SuQ = S.union(Q)
+        B_by_A = [(float(beta[k - 1]) / A[k - 1], k) for k in SuQ]
+        sorted_B_by_A = sorted(B_by_A, reverse=True)
+
+        # Find p
+        val = b - A[i]
+        p = 1
+        sumP = A[sorted_B_by_A[p - 1][1] - 1]
+        sumP_1 = sumP + A[sorted_B_by_A[p][1] - 1]
+        while True:
+            if val >= sumP and val < sumP_1:
+                break
+            else:
+                p += 1
+                if p == len(SuQ):
+                    return None
+                sumP = sumP_1
+                sumP_1 = sumP + A[sorted_B_by_A[p][1] - 1]
+
+        # Find z_bar
+        sum_bj = sum(beta[sorted_B_by_A[j][1] - 1] for j in range(p))
+        sum_aj = sum(A[sorted_B_by_A[j][1] - 1] for j in range(p))
+        z_bar = sum_bj + sorted_B_by_A[p][0] * (val - sum_aj)
+
+        # Use sufficient conditions to determine beta if possible
+        if z_bar < len(S) - pi[i] - 1:
+            beta[i] = pi[i] + 1
+            beta_j[q] = 1
+        else:
+            if sum_bj == len(S) - pi[i] - 1:
+                beta[i] = pi[i]
+                beta_j[q] = 0
+            else:
+                print 'dunno lol'
+    return beta
+
+
+def GenerateConstraintsFromMinimalCover(S, N, A, b):
+    """Generate all sequentially lifted facets from a minimal cover."""
+
+    # if len(set([6,7,8,9]).intersection(S)) == 4:
+    #     print 'hi'
+    # else:
+    #     return None
+
+    # Compute beta_dash and pi for each variable
+    beta_dash = GenerateBetaDashFromMinCover(S, A, b)
+    pi = GeneratePiFromMinCover(S, A)
+
+    # Split N\S into sets I and J
+    I, J = PartitionMinCoverToIAndJ(S, beta_dash, pi)
+
+    # Generate a sequentially lifted facet for each permutation of J
+    constraints = {}
+    for j in itertools.permutations(J):
+        beta = FindFacetsFromJ(j, S, A, b, pi)
+        if beta and not constraints.get(str(beta)):
+            constraints[str(beta)] = [beta, len(S) - 1]
+
+    # Filter duplicate facets before returning
+    constraints = constraints.values()
+    return constraints
+
+
 def WriteOutputFile(results_file, A, b, constraints, sort_map):
     """Write results file, containing all new cuts, ordered as in the input
     file.
@@ -334,7 +492,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description=('Reduce knapsack constraint to convex hull of integer '
                      'points'))
-    parser.add_argument('input_file', help='the problem data file to process')
+    parser.add_argument('-i', '--input_file', default='example_problem.dat',
+                        help='the problem data file to process')
     parser.add_argument('-r', '--results_file', default='results.txt',
                         help='name of results file (default: results.txt)')
     parser.add_argument('-a', '--ampl_file', default='knapsack.dat', help=
@@ -350,12 +509,20 @@ if __name__ == '__main__':
     A, b, c = ReadInputFile(input_file)
     N, A, sort_map = ConstructOrderedSet(A)
     sets = GenerateMinimalCovers(N, A, b)
-    sets = GenerateStrongCovers(sets)
+    print 'Covers generated', time.clock() - t_
+
+    # Filtering out non-strong covers seems to impact run-time
+    # sets = GenerateStrongCovers(sets)
     constraints = []
     for S in sets:
-        result = GenerateOneConstraintFromStrongCover(S, N, A, b)
+        result = GenerateConstraintsFromMinimalCover(S, N, A, b)
         if result:
             constraints += result
+
+    # Filter any duplicate constraints
+    con_dict = dict([(str(i), i) for i in constraints])
+    constraints = sorted(con_dict.values(), key=lambda a: (a[1], a[0]))
+
     WriteOutputFile(results_file, A, b, constraints, sort_map)
     WriteAmplDataFile(ampl_file, A, b, c, constraints, sort_map)
     print 'Total time taken', time.clock() - t_
