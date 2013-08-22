@@ -98,8 +98,7 @@ def ExtendSet(index_set):
 
 def GenerateMinimalCovers(N, A, b):
     """Finds all minimal covers of a knapsack constraint using a depth-first
-    search with backtracking. Minimal covers are then filtered to leave only
-    strong covers.
+    search with backtracking.
 
     Inputs:
         N: A set, indexing the variables of the constraint.
@@ -107,13 +106,11 @@ def GenerateMinimalCovers(N, A, b):
         b: A number, the right hand side of the constraint.
 
     Returns:
-        A list of sets, each corresponding to a strong minimal cover.
+        A list of sets, each corresponding to a minimal cover.
     """
 
-    # Sets classified by cardinality of set
-    set_map = defaultdict(list)
-
     n = len(N)
+    sets = []
 
     # Depth-first search with backtracking
     s = [0 for _ in range(n)]
@@ -128,7 +125,7 @@ def GenerateMinimalCovers(N, A, b):
 
             # Record current set as minimum cover and reset variable
             subset = ConvertIndexListToSet(s)
-            set_map[len(subset)].append(subset)
+            sets.append(subset)
             s[k] = 0
 
         # Move to next variable
@@ -150,8 +147,17 @@ def GenerateMinimalCovers(N, A, b):
             s[k] = 0
             k += 1
 
-    # Filter out all non-strong covers
-    sets = []
+    return sets
+
+
+def GenerateStrongCovers(minimal_covers):
+    """Filter out all non-strong covers."""
+    strong_sets = []
+
+    # Sets classified by cardinality of set
+    set_map = defaultdict(list)
+    for subset in minimal_covers:
+        set_map[len(subset)].append(subset)
 
     # Compare subsets of same cardinality only
     for subsets in set_map.itervalues():
@@ -167,9 +173,9 @@ def GenerateMinimalCovers(N, A, b):
                     break
 
         # Record all remaining sets as strong covers
-        sets += subsets
+        strong_sets += subsets
 
-    return sets
+    return strong_sets
 
 
 def SetCoefficientsForIndexSet(index_set, pi, value):
@@ -344,6 +350,7 @@ if __name__ == '__main__':
     A, b, c = ReadInputFile(input_file)
     N, A, sort_map = ConstructOrderedSet(A)
     sets = GenerateMinimalCovers(N, A, b)
+    sets = GenerateStrongCovers(sets)
     constraints = []
     for S in sets:
         result = GenerateOneConstraintFromStrongCover(S, N, A, b)
