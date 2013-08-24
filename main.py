@@ -2,6 +2,7 @@ import time
 import itertools
 import argparse
 from collections import defaultdict
+import numpy
 
 
 def ReadInputFile(filename):
@@ -275,7 +276,7 @@ def GenerateBetaDashFromMinCover(S, A, b):
     beta_dash = ['' for _ in range(len(A))]
     h = 0
     i = len(A) - 1
-    sortedS = sorted(S)
+    sortedS = sorted(S, reverse=True, key=lambda s: A[s - 1])
 
     sumSh = SumCoeffsOverSet(S, A)
     sumSh_1 = sumSh - A[sortedS[h] - 1]
@@ -303,7 +304,7 @@ def GeneratePiFromMinCover(S, A):
     q = len(S) - 1
     i = 0
     extS = ExtendSet(S)
-    sortedS = sorted(S)
+    sortedS = sorted(S, reverse=True, key=lambda s: A[s - 1])
     h = q
 
     sumSh_1 = SumFirstNCoeffsOfSet(S, A, h + 1)
@@ -344,10 +345,7 @@ def PartitionMinCoverToIAndJ(S, beta_dash, pi):
 
 
 def FindFacetsFromJ(J, S, A, b, pi):
-    """Finds a sequentially lifted facet from J if it exists."""
-
-    if not J:
-        return pi
+    """Finds a sequentially lifted facet from J."""
 
     beta = [pi[i] if i + 1 not in J else '' for i in range(len(A))]
     beta_j = [0 for _ in J]
@@ -372,6 +370,9 @@ def FindFacetsFromJ(J, S, A, b, pi):
         sumP = A[sorted_B_by_A[p - 1][1] - 1]
         sumP_1 = sumP + A[sorted_B_by_A[p][1] - 1]
         while True:
+            if val < sumP:
+                p = 0
+                break
             if val >= sumP and val < sumP_1:
                 break
             else:
@@ -399,10 +400,120 @@ def FindFacetsFromJ(J, S, A, b, pi):
     return beta
 
 
+def FindMJ(J, A, b):
+    """Depth-first search with backtrack to find all subsets M of J."""
+
+    n = len(J)
+    A_J = [A[j - 1] for j in sorted(J)]
+    sort_J = sorted(J)
+    s = [0 for _ in range(n)]
+    k = 0
+    sets = []
+    while k < n:
+        # Current value of selected set
+        v = SumCoeffsOverIndexList(s, A_J)
+        s[k] += 1
+        #print s, v + A_J[k]
+        # Check if adding next variable creates cover
+        if v + A_J[k] <= b:
+
+            # Record current set as minimum cover and reset variable
+            subset = set(sort_J[i] for i in range(n) if s[i])
+            sets.append(subset)
+        else:
+            s[k] = 0
+
+        # Move to next variable
+        k += 1
+
+        # Check for backtracking
+        if k == n:
+
+            # Terminate if all combinations tested
+            if v == 0:
+                break
+
+            # Backtrack to last selected variable and remove
+            k -= 1
+            s[k] = 0
+            while s[k] != 1:
+                s[k] = 0
+                k -= 1
+            s[k] = 0
+            k += 1
+    return sets
+
+
+def GenerateTConstraint(M, J, S, A, pi):
+    h = 0
+    sortedS = sorted(S)
+    sorted_J = sorted(J)
+
+    val = b - SumCoeffsOverSet(M, A)
+
+    sumSh = SumCoeffsOverSet(S, A)
+    sumSh_1 = sumSh - A[sortedS[h] - 1]
+    while True:
+        if val >= sumSh_1 and val < sumSh:
+            break
+        h += 1
+        sumSh = sumSh_1
+        sumSh_1 = sumSh - A[sortedS[h] - 1]
+
+    a = [1 if j in M else 0 for j in sorted_J]
+    rhs = h - SumCoeffsOverSet(M, pi)
+
+    return a, rhs
+
+
+def rank(A, eps=1e-12):
+    u, s, vh = numpy.linalg.svd(A)
+    return len([x for x in s if abs(x) > eps])
+
+
+def SimultaneousLifting(J, S, A, b, pi):
+    MJ = FindMJ(J, A, b)
+    con_list = []
+    rhs_list = []
+    for M in MJ:
+        con, rhs = GenerateTConstraint(M, J, S, A, pi)
+        con_list.append(con)
+        rhs_list.append(rhs)
+    r = len(J)
+    A_M = numpy.array(con_list)
+    b_M = numpy.array(rhs_list)
+    x_solns = []
+    for comb in itertools.combinations(range(len(con_list)), r):
+        A_Mc = numpy.array([con_list[i] for i in comb])
+        if numpy.linalg.matrix_rank(A_Mc) == r:
+            b_Mc = numpy.array([rhs_list[i] for i in comb])
+            x_c = numpy.linalg.solve(A_Mc, b_Mc)
+            b_c = A_M.dot(numpy.transpose(x_c))
+            if not sum(numpy.greater(b_c, b_M)):
+                x_solns.append(list(x_c))
+
+    # Remove duplicates
+    x_solns = sorted(x_solns)
+    x_solns = list(k for k, _ in itertools.groupby(x_solns))
+
+    # Generate facets
+    constraints = []
+    rhs = len(S) - 1
+    for x in x_solns:
+        a_x = pi[:]
+        for i, j in enumerate(sorted(J)):
+            a_x[j - 1] += x[i]
+        for i, j in enumerate(a_x):
+            if int(j) == j:
+                a_x[i] = int(j)
+        constraints.append([a_x, rhs])
+    return constraints
+
+
 def GenerateConstraintsFromMinimalCover(S, N, A, b):
     """Generate all sequentially lifted facets from a minimal cover."""
 
-    # if len(set([6,7,8,9]).intersection(S)) == 4:
+    # if len(set([6, 7, 8, 9]).intersection(S)) == 4:
     #     print 'hi'
     # else:
     #     return None
@@ -413,17 +524,22 @@ def GenerateConstraintsFromMinimalCover(S, N, A, b):
 
     # Split N\S into sets I and J
     I, J = PartitionMinCoverToIAndJ(S, beta_dash, pi)
+    if not J:
+        return [[pi, len(S) - 1]]
 
-    # Generate a sequentially lifted facet for each permutation of J
-    constraints = {}
-    for j in itertools.permutations(J):
-        beta = FindFacetsFromJ(j, S, A, b, pi)
-        if beta and not constraints.get(str(beta)):
-            constraints[str(beta)] = [beta, len(S) - 1]
+    # # Generate a sequentially lifted facet for each permutation of J
+    # constraints = {}
+    # for j in itertools.permutations(J):
+    #     beta = FindFacetsFromJ(j, S, A, b, pi)
+    #     if beta and not constraints.get(str(beta)):
+    #         constraints[str(beta)] = [beta, len(S) - 1]
+    #
+    # # Filter duplicate facets before returning
+    # constraints = constraints.values()
 
-    # Filter duplicate facets before returning
-    constraints = constraints.values()
-    return constraints
+    sim_constraints = SimultaneousLifting(J, S, A, b, pi)
+
+    return sim_constraints
 
 
 def WriteOutputFile(results_file, A, b, constraints, sort_map):
@@ -448,7 +564,7 @@ def WriteOutputFile(results_file, A, b, constraints, sort_map):
     for coefficients, rhs in constraints:
         coefficients = ReverseSortMap(coefficients, sort_map)
         f.write('%s\n' % ','.join(str(a) for a in coefficients))
-        f.write('%d\n' % rhs)
+        f.write('%s\n' % str(rhs))
         f.write('\n')
 
     f.close()
@@ -486,6 +602,37 @@ def WriteAmplDataFile(ampl_file, A, b, c, constraints, sort_map):
     f.write(' ;\n')
 
 
+def FindAllConstraintsForS(N, A, b):
+    sets = GenerateMinimalCovers(N, A, b)
+    print 'Covers generated', time.clock() - t_
+
+    # Filtering out non-strong covers seems to impact run-time
+    # sets = GenerateStrongCovers(sets)
+    constraints = []
+    for S in sets:
+        result = GenerateConstraintsFromMinimalCover(S, N, A, b)
+        if result:
+            constraints += result
+    return constraints
+
+
+def ComplementConstraint(A, b, C):
+    A_C = A[:]
+    b_C = b
+    for c in C:
+        A_C[c - 1] *= -1
+        b_C -= A[c - 1]
+    return A_C, b_C
+
+
+def UncomplementConstraint(A_C, b_C, C):
+    A = A_C[:]
+    b = b_C
+    for c in C:
+        A[c - 1] *= -1
+        b -= A_C[c - 1]
+    return A, b
+
 """Main routine."""
 if __name__ == '__main__':
     # Include and parse command line arguments
@@ -508,19 +655,26 @@ if __name__ == '__main__':
 
     A, b, c = ReadInputFile(input_file)
     N, A, sort_map = ConstructOrderedSet(A)
-    sets = GenerateMinimalCovers(N, A, b)
-    print 'Covers generated', time.clock() - t_
 
-    # Filtering out non-strong covers seems to impact run-time
-    # sets = GenerateStrongCovers(sets)
-    constraints = []
-    for S in sets:
-        result = GenerateConstraintsFromMinimalCover(S, N, A, b)
-        if result:
-            constraints += result
+    # constraints = []
+    # for r in range(len(N) + 1):
+    #     for C in itertools.combinations(N, r):
+    #         A_C, b_C = ComplementConstraint(A, b, C)
+    #         comp_constraints = FindAllConstraintsForS(N, A_C, b_C)
+    #         new_constraints = []
+    #         for a_C, a0_C in comp_constraints:
+    #             a, a0 = UncomplementConstraint(a_C, a0_C, C)
+    #             new_constraints.append([a, a0])
+    #         constraints += new_constraints
+    constraints = FindAllConstraintsForS(N, A, b)
 
-    # Filter any duplicate constraints
-    con_dict = dict([(str(i), i) for i in constraints])
+    con_dict = {}
+    for a in constraints:
+        if not con_dict.get(str(a)):
+            con_dict[str(a)] = a
+
+    # Sort constraints
+    #con_dict = dict([(str(i), i) for i in constraints])
     constraints = sorted(con_dict.values(), key=lambda a: (a[1], a[0]))
 
     WriteOutputFile(results_file, A, b, constraints, sort_map)
