@@ -14,9 +14,8 @@ def ReadInputFile(filename):
     The second line contains the coefficients of each variable in the single
     knapsack constraint, delimited by commas.
 
-    The third line contains the right hand side value for the knapsack constraint.
-    This value is assumed to be integer.
-    TODO(jwd): check if this requirement is necessary.
+    The third line contains the right hand side value for the knapsack
+    constraint.
 
     The fourth line contains the value of each variable, where the total value
     is to be maximised.
@@ -321,10 +320,12 @@ def WriteOutputFile(results_file, A, b, constraints, sort_map):
     f = open(results_file, 'w')
     f.write('ORIGINAL CONSTRAINT\n')
     f.write('\n')
+
     f.write('%d\n' % len(A))
     A_ordered = ReverseSortMap(A, sort_map)
     f.write('%s\n' % ','.join(str(a) for a in A_ordered))
     f.write('%d\n' % b)
+
     f.write('\n')
     f.write('--------------------\n')
     f.write('\n')
@@ -332,6 +333,7 @@ def WriteOutputFile(results_file, A, b, constraints, sort_map):
     f.write('\n')
     f.write('--------------------\n')
     f.write('\n')
+
     for coefficients, rhs in constraints:
         coefficients = ReverseSortMap(coefficients, sort_map)
         f.write('%s\n' % ','.join(str(a) for a in coefficients))
@@ -345,22 +347,26 @@ def WriteAmplDataFile(ampl_file, A, b, c, constraints, sort_map):
     """Write data file for use in AMPL model with new constraints."""
 
     f = open(ampl_file, 'w')
+
     f.write('set VARIABLES := %s;\n' % ' '.join(str(i + 1) for i in
             range(len(A))))
     f.write('set CONSTRAINTS := %s;\n' % ' '.join(str(i + 1) for i in
             range(len(constraints) + 1)))
     f.write('\n')
+
     f.write('param c :=\n')
     for i, j in enumerate(c):
         f.write('%2d  %2d\n' % (i + 1, j))
     f.write(' ;\n')
     f.write('\n')
+
     f.write('param b :=\n')
     f.write('%2d  %2d\n' % (1, b))
     for i, j in enumerate(constraints):
         f.write('%2d  %2d\n' % (i + 2, j[1]))
     f.write(' ;\n')
     f.write('\n')
+
     f.write('param a (tr) :\n')
     f.write('     %s :=\n' % '   '.join(str(i + 1) for i in
             range(len(A))))
@@ -371,6 +377,7 @@ def WriteAmplDataFile(ampl_file, A, b, c, constraints, sort_map):
         f.write('%2d   %s\n' % (i + 2, '   '.join(str(a) for a in
                 coefficients)))
     f.write(' ;\n')
+    f.close()
 
 
 def FindAllConstraints(N, A, b, used_sets):
