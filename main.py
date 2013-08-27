@@ -1,7 +1,6 @@
 import time
 import itertools
 import argparse
-from collections import defaultdict
 import numpy
 import pulp
 
@@ -90,15 +89,6 @@ def ConvertIndexListToSet(index_list):
     return set(i + 1 for i, j in enumerate(index_list) if j == 1)
 
 
-def ExtendSet(index_set):
-    """Creates the extension of an index set by adding to the set all elements
-    with indices smaller than the smallest index in the index set.
-    """
-
-    min_elem = min(index_set)
-    return index_set.union(set(range(1, min_elem)))
-
-
 def GenerateMinimalCovers(N, A, b):
     """Finds all minimal covers of a knapsack constraint using a depth-first
     search with backtracking.
@@ -153,75 +143,6 @@ def GenerateMinimalCovers(N, A, b):
     return sets
 
 
-def GenerateStrongCovers(minimal_covers):
-    """Filter out all non-strong covers."""
-    strong_sets = []
-
-    # Sets classified by cardinality of set
-    set_map = defaultdict(list)
-    for subset in minimal_covers:
-        set_map[len(subset)].append(subset)
-
-    # Compare subsets of same cardinality only
-    for subsets in set_map.itervalues():
-
-        # If extension of set is subset of any other set extension, remove
-        # this set from potential strong covers
-        extended_subsets = [ExtendSet(ss) for ss in subsets]
-        l = len(subsets) - 1
-        for i in range(len(subsets)):
-            for j in range(len(subsets)):
-                if extended_subsets[l - i] < extended_subsets[l - j]:
-                    subsets.pop(l-i)
-                    break
-
-        # Record all remaining sets as strong covers
-        strong_sets += subsets
-
-    return strong_sets
-
-
-def SetCoefficientsForIndexSet(index_set, pi, value):
-    """Set all entries of pi indicated by the index set equal to the value
-    specified.
-    """
-
-    for i in index_set:
-        pi[i - 1] = value
-    return pi
-
-
-def FirstNElemsOfSet(index_set, n):
-    """Select the smallest n elements of an index set."""
-
-    return set(sorted(list(index_set))[:n])
-
-
-def SumFirstNCoeffsOfSet(index_set, A, n):
-    """Sum the values of the n largest coefficients from those indicated by
-    the index set.
-    """
-
-    reduced_set = FirstNElemsOfSet(index_set, n)
-    return SumCoeffsOverSet(reduced_set, A)
-
-
-def CheckValidityOfCut(S, A, h, Nh, b):
-    """Checks whether a given inequality will correspond to a facet-defining
-    cut.
-    """
-
-    # Reduce the set S to the first h+1 elements
-    reduced_S = S - FirstNElemsOfSet(S, h + 1)
-    reduced_sum = SumCoeffsOverSet(reduced_S, A)
-
-    # If any extra element added violates the constraint, reject the constraint
-    for i in Nh:
-        if reduced_sum + A[i - 1] > b:
-            return False
-    return True
-
-
 def ReverseSortMap(A, sort_map):
     """Restores the order of a list to the order in the input file."""
 
@@ -229,71 +150,6 @@ def ReverseSortMap(A, sort_map):
     for i, j in enumerate(sort_map):
         reversed_A[j] = A[i]
     return reversed_A
-
-
-def GenerateQthConstraintFromStrongCover(S, N, A, b, q):
-    """Generates a cutting constraint from a strong cover S, given q."""
-
-    pi_0 = len(S) - 1
-    pi = [0 for _ in range(len(N))]
-
-    extended_S = ExtendSet(S)
-    if q > 1:
-        Sh_sum_old = SumFirstNCoeffsOfSet(S, A, 2)
-        for h in range(2, q + 1):
-            Sh_sum_new = SumFirstNCoeffsOfSet(S, A, h + 1)
-            Nh = set(i for i in N if A[i - 1] >= Sh_sum_old and
-                     A[i - 1] < Sh_sum_new)
-
-            # Check validity
-            if not CheckValidityOfCut(S, A, h, Nh, b):
-                return None
-
-            pi = SetCoefficientsForIndexSet(Nh, pi, h)
-            extended_S -= Nh
-            Sh_sum_old = Sh_sum_new
-
-    # Check validity
-    if not CheckValidityOfCut(S, A, 1, extended_S, b):
-        return None
-    pi = SetCoefficientsForIndexSet(extended_S, pi, 1)
-    return pi, pi_0
-
-
-def GenerateOneConstraintFromStrongCover(S, N, A, b):
-    """Generates maximal constraint for a strong cover S."""
-
-    constraints = []
-    end = max(len(S) - 1, 1)
-    result = GenerateQthConstraintFromStrongCover(S, N, A, b, end)
-    if result:
-        constraints.append((result[0], result[1]))
-    return constraints
-
-
-def GenerateBetaDashFromMinCover(S, A, b):
-    """Generate all beta_dash coefficients for a minimal cover S."""
-    beta_dash = ['' for _ in range(len(A))]
-    h = 0
-    i = len(A) - 1
-    sortedS = sorted(S, reverse=True, key=lambda s: A[s - 1])
-
-    sumSh = SumCoeffsOverSet(S, A)
-    sumSh_1 = sumSh - A[sortedS[h] - 1]
-    while i >= 0:
-        if i + 1 in S:
-            beta_dash[i] = 1
-            i -= 1
-        else:
-            val = b - A[i]
-            if val >= sumSh_1 and val < sumSh:
-                beta_dash[i] = h
-                i -= 1
-            else:
-                h += 1
-                sumSh = sumSh_1
-                sumSh_1 = sumSh - A[sortedS[h] - 1]
-    return beta_dash
 
 
 def FindMJ(J, A, b):
@@ -313,7 +169,7 @@ def FindMJ(J, A, b):
         # Check if adding next variable creates cover
         if v + A_J[k] <= b:
 
-            # Record current set as minimum cover and reset variable
+            # Record current set as feasible M and reset current variable
             subset = set(sort_J[i] for i in range(n) if s[i])
             sets.append(subset)
         else:
@@ -338,6 +194,7 @@ def FindMJ(J, A, b):
             s[k] = 0
             k += 1
     return sets
+
 
 def GenerateWConstraint(M, S, NS, A, b):
     """For a given M and S, solves a knapsack problem to find a constraint
